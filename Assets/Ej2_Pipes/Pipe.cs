@@ -45,14 +45,10 @@ public class Pipe : MonoBehaviour {
 
 	//Hace visible o invisible una conexion (representacion grafica unicamente)
 	//Ejemplo: SetConnection(Direction.Left, true);
-	public void SetConnection(Direction which, bool visible) {
-		parts[(int)which].SetActive(visible);
-	}
+	public void SetConnection(Direction which, bool visible) { parts[(int)which].SetActive(visible); }
 	
 	void Awake () {
-		foreach(var p in parts) {
-			p.SetActive (false);
-		}
+		foreach(var p in parts) { p.SetActive (false); }
 		SetConnection(Direction.Center, true);
 	}
 }
