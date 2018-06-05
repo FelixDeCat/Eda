@@ -3,25 +3,24 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.UI;
 
+public class Sudoku : MonoBehaviour
+{
+    public Cell prefabCell;
+    public Canvas canvas;
+    public Text feedback;
+    public float stepDuration = 0.05f;
+    [Range(1, 82)]
+    public int difficulty = 40;
 
-public class Sudoku : MonoBehaviour {
-	public Cell prefabCell;
-	public Canvas canvas;
-	public Text feedback;
-	public float stepDuration = 0.05f;
-	[Range(1, 82)]public int difficulty = 40;
-
-	Matrix<Cell> _board;
-	Matrix<int> _createdMatrix;
+    Matrix<Cell> _board;
+    Matrix<int> _createdMatrix;
     List<int> posibles = new List<int>();
-	int _smallSide;
-	int _bigSide;
+    int _smallSide;
+    int _bigSide;
     string memory = "";
     string canSolve = "";
     bool canPlayMusic = false;
     List<int> nums = new List<int>();
-
-    int watchdog = 0;
 
     float r = 1.0594f;
     float frequency = 440;
@@ -31,451 +30,277 @@ public class Sudoku : MonoBehaviour {
     float samplingF = 48000;
 
 
-    void Start()
-    {
+    void Start() {
+
+        //bla bla
         long mem = System.GC.GetTotalMemory(true);
         feedback.text = string.Format("MEM: {0:f2}MB", mem / (1024f * 1024f));
         memory = feedback.text;
+
+        // esto es simplemente para formalizar la longitud del sector
+        // tranquilamente se podía hacer hecho con un CONST, pero al profe no le gustan los CONST porque rompe con Solid... creo :p
         _smallSide = 3;
         _bigSide = _smallSide * 3;
+
+        //bla bla 
         frequency = frequency * Mathf.Pow(r, 2);
+
+        // Crea las celdas en el escenario.
+        // Las limpia por si las pulgas
         CreateEmptyBoard();
         ClearBoard();
     }
 
+    /// <summary>
+    /// hace dos cosas distintas
+    /// * crea una matriz nueva
+    /// * del board limpia todo, desbloquea, valida y zera
+    /// </summary>
     void ClearBoard() {
-		_createdMatrix = new Matrix<int>(_bigSide, _bigSide, Cell.EMPTY);
-        SetBoardFromIntMatrix(_createdMatrix, false);
-
-        for (var y = 0; y < _board.height; y++)
-        {
-            for (int x = 0; x < _board.width; x++)
-            {
-                var cell = _board[x, y];
-                cell.number = Cell.EMPTY;
-                cell.locked = cell.invalid = false;
-            }
-
-        }
-		/*foreach(var cell in _board) {
-			cell.number = 0;
-			cell.locked = cell.invalid = false;
-		}*/
-	}
-    void SetBoardFromIntMatrix(Matrix<int> mtx, bool lockNonEmpty)
-    {
-        for (var y = 0; y < mtx.height; y++)
-        {
-            for (var x = 0; x < mtx.width; x++)
-            {
-                _board[x, y].number = mtx[x, y];
-
-                if (!_board[x, y].isEmpty && lockNonEmpty)
-                {
-                    _board[x, y].locked = true;
-                }
-            }
+        _createdMatrix = new Matrix<int>(_bigSide, _bigSide);
+        foreach (var cell in _board) {
+            cell.number = 0;
+            cell.locked = cell.invalid = false;
         }
     }
 
+    /// <summary>
+    /// Funcion FRONTEND que crea las celdas físicamente en el escenario
+    /// </summary>
     void CreateEmptyBoard() {
-		float spacing = 68f;
-		float startX = -spacing * 4f;
-		float startY = spacing * 4f;
-
-		_board = new Matrix<Cell>(_bigSide, _bigSide);
-		for(int x = 0; x<_board.width; x++) {
-			for(int y = 0; y<_board.height; y++) {
+        float spacing = 68f;// 68 es la separacion entre cells
+        float startX = -spacing * 4f;//(-272) *4 es xq desde el centro hasta la punta hay 4 casilleros
+        float startY = spacing * 4f;//(272) *4 es xq desde el centro hasta la punta hay 4 casilleros
+        _board = new Matrix<Cell>(_bigSide, _bigSide);
+        for (int x = 0; x < _board.width; x++) {
+            for (int y = 0; y < _board.height; y++) {
                 var cell = _board[x, y] = Instantiate(prefabCell);
-				cell.transform.SetParent(canvas.transform, false);
-				cell.transform.localPosition = new Vector3(startX + x * spacing, startY - y * spacing, 0);
-			}
-		}
-	}
-    bool CanPlaceValue(Matrix<int> matrix, Matrix<bool> invalids = null)
-    {
-        for (var j = 0; j < matrix.height; j = j + _smallSide)
-        {
-            for (var i = 0; i < matrix.width; i = i + _smallSide)
-            {
-                if (!nroRandom.Unique(matrix.GetRange(i, j, i + _smallSide - 1, j + _smallSide - 1)))
-                {
-                    return false;
-                }
+                cell.transform.SetParent(canvas.transform, false);
+                cell.transform.localPosition = new Vector3(startX + x * spacing, startY - y * spacing, 0);
             }
         }
-
-        for (var y = 0; y < matrix.height; y++)
-        {
-            for (var x = 0; x < matrix.width; x++)
-            {
-                if (!nroRandom.Unique(matrix.GetRange(0, y, matrix.width - 1, y)) || !nroRandom.Unique(matrix.GetRange(x, 0, x, matrix.height - 1)))
-                {
-                    return false;
-                }
-            }
-        }
-
-        return true;
     }
 
-
-
-    //int watchdog = 0;
-    bool RecuSolve(Matrix<int> matrixParent, int x, int y/*, int protectMaxDepth*/, List<Matrix<int>> solution)
-    {
-        if(watchdog < 1)
-        {
-          return false;
-        }
-        else
-        {
-            watchdog--;
-        }
-        var _clone = matrixParent.Clone();
-        solution.Add(_clone);
-
-        var _numbers = new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-        
-        nroRandom.Shuffle(_numbers);
-        if(!CanPlaceValue(_clone, x, y))
-        {
-            return false;
-        }
-        else if (x == (_clone.width - 1) && y == (_clone.height - 1)  && CanPlaceValue(_clone , x , y) && _clone[x, y] != Cell.EMPTY)
-        {
-            return true;
-        }
-        else
-        {
-            if (_clone[x, y] == Cell.EMPTY)
-            {
-                for (var i = 0; i < _numbers.Length; i++)
-                {
-                    _clone[x, y] = _numbers[i];
-                    if (RecuSolve(_clone, x, y, solution))
-                    {
-                        return true;
-                    }
-                }
-            }
-            else
-            {
-                if(x< (_clone.width - 1))
-                {
-                    x = x + 1;
-                }
-                else
-                {
-                    x = 0;
-                    if (y < (_clone.height - 1))
-                    {
-                        y = y + 1;
-                    }
-                }
-            }
-            return RecuSolve(_clone, x, y, solution);
-        }
-	}
-
-
-
-    void OnAudioFilterRead(float[] array, int channels)
-    {
-        if(canPlayMusic)
-        {
+    #region no nos interesa
+    int watchdog = 0;
+    bool RecuSolve(Matrix<int> matrixParent, int x, int y, int protectMaxDepth, List<Matrix<int>> solution) { return false; }
+    void OnAudioFilterRead(float[] array, int channels) {
+        if (canPlayMusic) {
             increment = frequency * Mathf.PI / samplingF;
-            for (int i = 0; i < array.Length; i++)
-            {
+            for (int i = 0; i < array.Length; i++) {
                 phase = phase + increment;
                 array[i] = (float)(gain * Mathf.Sin((float)phase));
             }
         }
-        
     }
-    void changeFreq(int num)
+    void changeFreq(int num) { frequency = 440 + num * 80; }
+    IEnumerator ShowSequence(List<Matrix<int>> seq) { yield return new WaitForSeconds(0); }
+    #endregion
+
+    void Update()
     {
-        frequency = 440 + num * 80;
+        if (Input.GetKeyDown(KeyCode.R) || Input.GetMouseButtonDown(1)) SolvedSudoku();
+        else if (Input.GetKeyDown(KeyCode.C) || Input.GetMouseButtonDown(0)) CreateSudoku();
     }
-
-	IEnumerator ShowSequence(List<Matrix<int>> seq)
-    {
-        yield return new WaitForSeconds(0);
-    }
-
-	void Update () {
-		if(Input.GetKeyDown(KeyCode.R) || Input.GetMouseButtonDown(1))
-        {
-            //StopAllCoroutines();
-            //watchdog = 100000;
-            //var _solution = new List<Matrix<int>>();
-            //RecuSolve(_createdMatrix, 0, 0, _solutions);
-
-           // StartCoroutine(ShowSequence(_solutions));
-
-        }
-           // SolvedSudoku();
-        else if(Input.GetKeyDown(KeyCode.C) || Input.GetMouseButtonDown(0)) 
-            CreateSudoku();
-
-	
-	}
 
     void SolvedSudoku()
     {
+        // bla bla bla
         StopAllCoroutines();
-        nums = new List<int>();
-        var solution = new List<Matrix<int>>();
         watchdog = 100000;
-        var result =false;//????
+
+        //coleccion que podemos usar
+        nums = new List<int>();
+
+        //una lista de Matrix's
+        var solution = new List<Matrix<int>>();
+
+        // esto se supone que lo tenemos que usar nosotros, pequeña pista
+        var result = false;
+
+        //bla bla bla
         long mem = System.GC.GetTotalMemory(true);
         memory = string.Format("MEM: {0:f2}MB", mem / (1024f * 1024f));
+
+        //FRONTEND FEEDBACK ETC ETC
         canSolve = result ? " VALID" : " INVALID";
     }
 
     void CreateSudoku()
     {
+        // bla bla bla
         StopAllCoroutines();
-        //nums = new List<int>();
         canPlayMusic = false;
-        ClearBoard();
-        List<Matrix<int>> l = new List<Matrix<int>>();
-        var _solutions = new List<Matrix<int>>();
         watchdog = 100000;
-        RecuSolve(_createdMatrix, 0, 0, _solutions); // aca hay un error
-        SetBoardFromIntMatrix(_createdMatrix, true);
-       // GenerateValidLine(_createdMatrix, 0, 0);
-        //var result =false;//??????
-        _createdMatrix = l[0].Clone();//??????
-       // LockRandomCells();
-       // ClearUnlocked(_createdMatrix);
-        //TranslateAllValues(_createdMatrix);
-       // long mem = System.GC.GetTotalMemory(true);
-        //memory = string.Format("MEM: {0:f2}MB", mem / (1024f * 1024f));
-        //canSolve = result ? " VALID" : " INVALID";
-        //feedback.text = "Pasos: " + l.Count + "/" + l.Count + " - " + memory + " - " + canSolve;
-        feedback.text = CanPlaceValue(_createdMatrix) ? "Valid board." : "Invalid board.";
+
+        //coleccion que podemos usar
+        nums = new List<int>();
+
+        //limpia el tablero, (ZERA, VALIDA, DESBLOQUEA)
+        ClearBoard();
+
+        //una lista de Matrix's
+        var l = new List<Matrix<int>>();
+        
+        //crea un la primer fila random
+        GenerateValidLine(_createdMatrix, 0, 0);
+
+        // esto se supone que lo tenemos que usar nosotros, pequeña pista
+        var result = false;
+
+        //Obtiene la primer matriz, pero esta vacia, la tenemos que rellenar con algo
+        _createdMatrix = l[0].Clone();
+
+        //Esto supongo que será para luego borrar las que no estan bloqueadas y que tengamos que resolverlo con fuerza bruta
+        LockRandomCells();
+
+        //jaja si efectivamente es para que luego lo resolvamos a fuerza bruta
+        ClearUnlocked(_createdMatrix);
+
+        // esta funcion lo que hace es que vos le pasas la matriz que rellenamos mas arriba y se la 
+        // copia toooda al board, para que laburemos con el board y no con esta _createdMatrix
+        TranslateAllValues(_createdMatrix);
+
+        //bla bla bla
+        long mem = System.GC.GetTotalMemory(true);
+        memory = string.Format("MEM: {0:f2}MB", mem / (1024f * 1024f));
+
+        //FRONTEND FEEDBACK ETC ETC
+        canSolve = result ? " VALID" : " INVALID";
+        feedback.text = "Pasos: " + l.Count + "/" + l.Count + " - " + memory + " - " + canSolve;
     }
-	void GenerateValidLine(Matrix<int> mtx, int x, int y)
-	{
-		int[]aux = new int[9];
-		for (int i = 0; i < 9; i++) 
-		{
-			aux [i] = i + 1;
-		}
-		int numAux = 0;
-		for (int j = 0; j < aux.Length; j++) 
-		{
-			int r = 1 + Random.Range(j,aux.Length);
-			numAux = aux [r-1];
-			aux [r-1] = aux [j];
-			aux [j] = numAux;
-		}
-		for (int k = 0; k < aux.Length; k++) 
-		{
-			mtx [k, 0] = aux [k];
-		}
-	}
 
-
-	void ClearUnlocked(Matrix<int> mtx)
-	{
-		for (int i = 0; i < _board.height; i++) {
-			for (int j = 0; j < _board.width; j++) {
-				if (!_board [j, i].locked)
-					mtx[j,i] = Cell.EMPTY;
-			}
-		}
-	}
-
-	void LockRandomCells()
-	{
-		List<Vector2> posibles = new List<Vector2> ();
-		for (int i = 0; i < _board.height; i++) {
-			for (int j = 0; j < _board.width; j++) {
-				if (!_board [j, i].locked)
-					posibles.Add (new Vector2(j,i));
-			}
-		}
-		for (int k = 0; k < 82-difficulty; k++) {
-			int r = Random.Range (0, posibles.Count);
-			_board [(int)posibles [r].x, (int)posibles [r].y].locked = true;
-			posibles.RemoveAt (r);
-		}
-	}
-
-    void TranslateAllValues(Matrix<int> matrix)
+    // Le pasas una Matriz y te crea en el primer indice una linea desordenada
+    // es solo en la primera, supongo que es para iniciar el calculo
+    // ademas recibe x e y, que no se usan, algo habra borrado, o flasheo que
+    // iba a hacer otra cosa y no lo hizo
+    void GenerateValidLine(Matrix<int> mtx, int x, int y)
     {
+        // rellena aux[] con... { 1,2,3,4,5,6,7,8,9 }
+        int[] aux = new int[9];
+        for (int i = 0; i < 9; i++) aux[i] = i + 1; 
+        
+        // desordena aux[]
+        int numAux = 0;
+        for (int j = 0; j < aux.Length; j++) {
+            int r = 1 + Random.Range(j, aux.Length);
+            numAux = aux[r - 1];
+            aux[r - 1] = aux[j];
+            aux[j] = numAux;
+        }
+
+        // va generando una linea horizontal con ese array desordenado
+        for (int k = 0; k < aux.Length; k++) mtx[k, 0] = aux[k];
+    }
+
+    /// <summary> Le pasas una matriz, y comienza a recorrer por el alto/ancho del board, si encuentra una
+    /// celda que no esta bloqueada, a la matriz le asigna en esa coordenada un cero </summary>
+    void ClearUnlocked(Matrix<int> mtx) {
+        for (int i = 0; i < _board.height; i++)
+            for (int j = 0; j < _board.width; j++)
+                if (!_board[j, i].locked)
+                    mtx[j, i] = Cell.EMPTY;
+    }
+
+    void LockRandomCells()
+    {
+        List<Vector2> posibles = new List<Vector2>();
+        for (int i = 0; i < _board.height; i++)
+        {
+            for (int j = 0; j < _board.width; j++)
+            {
+                if (!_board[j, i].locked)
+                    posibles.Add(new Vector2(j, i));
+            }
+        }
+        for (int k = 0; k < 82 - difficulty; k++)
+        {
+            int r = Random.Range(0, posibles.Count);
+            _board[(int)posibles[r].x, (int)posibles[r].y].locked = true;
+            posibles.RemoveAt(r);
+        }
+    }
+
+
+    #region Funciones Translate
+    /////////////////////////////////////////////////////////////////////////////
+    // Estas funciones Modifican de alguna manera el Board Principal actual...
+    // La primera le pasas una matrix con algun contenido, entonces esta se encarga de pasarle todo ese contenido al Board
+    // La segunda vos le pasas el valor en especifico que queres modificar y se lo das a una coordenada (Recomendacion, poner un filtro antes de llamar a esta funcion)
+    // La tercera Le pasas un rango de donde hasta donde y la rellena con el contenido de _createdMatrix
+    // La cuarta Llama a la primera, pero antes, crea una matriz, porque la primera te pide una matriz... esta matriz es una de las que estan en la base de datos
+    /////////////////////////////////////////////////////////////////////////////
+    void TranslateAllValues(Matrix<int> matrix) {
         for (int y = 0; y < _board.height; y++)
-        {
             for (int x = 0; x < _board.width; x++)
-            {
                 _board[x, y].number = matrix[x, y];
-            }
-        }
     }
 
-    void TranslateSpecific(int value, int x, int y)
-    {
-        _board[x, y].number = value;
-    }
-
-    void TranslateRange(int x0, int y0, int xf, int yf)
-    {
+    void TranslateSpecific(int value, int x, int y) { _board[x, y].number = value; }
+    void TranslateRange(int x0, int y0, int xf, int yf) {
         for (int x = x0; x < xf; x++)
-        {
             for (int y = y0; y < yf; y++)
-            {
                 _board[x, y].number = _createdMatrix[x, y];
-            }
-        }
     }
-    /*void CreateNew()
-    {
+    void CreateNew() {
         _createdMatrix = new Matrix<int>(Tests.validBoards[1]);
         TranslateAllValues(_createdMatrix);
-    }*/
+    }
+    #endregion
 
-    bool CanPlaceValue(Matrix<int> mtx, /*int value,*/ int x, int y)
+
+    /// <summary>
+    /// No Tocar, funcion copada sin SIDE EFFECTS, le pasas la matriz que queres chequear, un valor y una coordenada
+    /// y ella sola te dice... podes poner ese numerito en esa coordenada de esa matriz
+    /// (TODO ESTO ES SOLO PARA CHECKEAR, NO MODIFICA NADA)
+    /// </summary>
+    /// <returns> Retorna true en el caso de que puedas poner ese valor ahí </returns>
+    bool CanPlaceValue(Matrix<int> mtx, int value, int x, int y)
     {
-       List<int> fila = new List<int>();
-       List<int> columna = new List<int>();
-       List<int> area = new List<int>();
-       List<int> total = new List<int>();
+        List<int> fila = new List<int>();
+        List<int> columna = new List<int>();
+        List<int> area = new List<int>();
+        List<int> total = new List<int>();
 
         Vector2 cuadrante = Vector2.zero;
 
-       /* for (int i = 0; i < mtx.height; i++)
-        {
-            for (int j = 0; j < mtx.width; j++)
-            {
+        //este for va acumulando los valores que se encuentran en las filas y columnas adyacentes
+        //exeptuando la misma coordenada que le pasamos por X e Y
+        /* ejemplo
+         001000
+         001000
+         11E111
+         001000
+         */
+        for (int i = 0; i < mtx.height; i++) {
+            for (int j = 0; j < mtx.width; j++) {
                 if (i != y && j == x) columna.Add(mtx[j, i]);
-                else if(i == y && j != x) fila.Add(mtx[j,i]);
-            }
-        }*/
-        //
-        if (!nroRandom.Unique(mtx.GetRange(0, y, mtx.width - 1, y)))
-            return false;
-
-        if (!nroRandom.Unique(mtx.GetRange(x, 0, x, mtx.height - 1)))
-             return false;
-
-        cuadrante.x = (int)(x / 3);
-
-        if (x < 3)
-        {
-            //cuadrante.x = 0;
-            if (!nroRandom.Unique(mtx.GetRange(0, 0, 2, 2)))
-            {
-                return false;
+                else if (i == y && j != x) fila.Add(mtx[j, i]);
             }
         }
 
-        else if (x < 6)
-        {
-            // cuadrante.x = 3;
-            if (!nroRandom.Unique(mtx.GetRange(3, 0, 5, 2)))
-            {
-                return false;
-            }
-        }
-        else
-        {
-            //cuadrante.x = 6;            
-                if (!nroRandom.Unique(mtx.GetRange(6, 0, 8, 2)))
-                {
-                    return false;
-                }          
-        }
-            //cuadrante.x = 6;
+        // Obtiene el cuadrante sabiendo que el primer cuadrante 
+        // empieza en el index 0, el segundo en 3 y el tercero en 6
+        cuadrante.x = x < 3 ? 0 : (x < 6 ? 3 : 6);
+        cuadrante.y = y < 3 ? 0 : (y < 6 ? 3 : 6);
 
-        if (y < 3)
-        {
-            //cuadrante.y = 0;
-            if (!nroRandom.Unique(mtx.GetRange (0,0,2,2)))
-            {
-                return false;
-            }
-        }
-
-        else if (y < 6)
-        {
-            //cuadrante.y = 3;
-            if (x < _smallSide)
-            {
-                if (!nroRandom.Unique(mtx.GetRange(0, 3, 2, 5)))
-                {
-                    return false;
-                }
-            }
-            else if (x < _smallSide * 2)
-            {
-                if (!nroRandom.Unique(mtx.GetRange(3, 3, 5, 5)))
-                {
-                    return false;
-                }
-            }
-            else
-            
-               // cuadrante.y = 6;
-            {
-                    if (!nroRandom.Unique(mtx.GetRange(6, 3, 8, 5)))
-                    {
-                        return false;
-                    }
-            }
-            
-        }
-        else
-        {
-            if (x < _smallSide)
-            {
-                if (!nroRandom.Unique(mtx.GetRange(0, 6, 2, 8)))
-                {
-                    return false;
-                }
-            }
-
-            else if (x < _smallSide * 2)
-            {
-                if (!nroRandom.Unique(mtx.GetRange(3, 6, 5, 8)))
-                {
-                    return false;
-                }
-            }
-
-            else
-            {
-                if (!nroRandom.Unique(mtx.GetRange(6, 6, 8, 8)))
-                {
-                    return false;
-                }
-            }
-        }
-
-
-
-//  esto nose para que es
+        //obtiene todos los valores comprendidos entre el cuadrante actual y los devuelve en una lista
         area = mtx.GetRange((int)cuadrante.x, (int)cuadrante.y, (int)cuadrante.x + 3, (int)cuadrante.y + 3);
+
+        //aca empieza a sumar toooooodo a la lista para que luego podamos checquear si nuestro valor esta entre ellas
         total.AddRange(fila);
         total.AddRange(columna);
         total.AddRange(area);
-        total = FilterZeros(total);
+        total = FilterZeros(total); //esto es porque simplemente el cero no lo necesitamos calcular y sacamos de la lista
 
-       // if (total.Contains(value))
-        //    return false;
-        //else
-            return true;
+        //checkeamos, si no lo contiene es porque podemos poner ese valor ahi
+        return !total.Contains(value);
     }
 
-
-    List<int> FilterZeros(List<int> list)
-    {
+    /// <summary> A partir de una lista pasada por parametros devuelve otra nueva pero sin ceros </summary>
+    List<int> FilterZeros(List<int> list) {
         List<int> aux = new List<int>();
-        for (int i = 0; i < list.Count; i++)
-        {
-            if (list[i] != 0) aux.Add(list[i]);
-        }
+        for (int i = 0; i < list.Count; i++) { if (list[i] != 0) aux.Add(list[i]); }
         return aux;
     }
 }
