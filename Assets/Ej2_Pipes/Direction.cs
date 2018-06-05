@@ -4,5 +4,6 @@ public enum Direction {
 	Top = 1,
 	Right = 2,
 	Bottom = 3,
-	Center = 4
+	Center = 4,
+    Count = 5
 }
