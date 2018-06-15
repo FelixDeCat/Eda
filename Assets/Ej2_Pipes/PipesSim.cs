@@ -142,16 +142,9 @@ public class PipesSim : MonoBehaviour
 
 
 
-    void Update()
-    {
-        if (Input.GetMouseButtonDown(0))
-        {
-
-        }
-        else if (Input.GetMouseButtonDown(1))
-        {
-
-        }
+    void Update(){
+        if (Input.GetMouseButtonDown(0)) {}
+        else if (Input.GetMouseButtonDown(1)){}
     }
 }
 public static class ext
