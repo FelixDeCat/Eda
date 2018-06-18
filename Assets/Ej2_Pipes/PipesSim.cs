@@ -13,8 +13,6 @@ public class PipesSim : MonoBehaviour
         public List<Node> neighbours = new List<Node>();
     };
 
-    
-
     public Pipe prefabPipe;
     public int maxWidth, maxHeight;
     [Range(0.0f, 1.0f)] public float branchChance;
@@ -62,13 +60,24 @@ public class PipesSim : MonoBehaviour
     public void Iniciar()
     {
         var intial = _root;
-
-
     }
 
     //Creamos el sistema de cañerias
     Node RecuBuildDFS(int x, int y, Node prev = null, Direction comingFrom = Direction.Left)
     {
+        Node myNode = CreateNode(x,y);
+
+        // esto recibe mi posicion y me devuelve una tupla de nodos, (Item1 = Posicion del vecino), (Item2 = Direction del vecino)
+        var vecinos = GetNeighboursPositions(new Vector2(x,y));
+
+        for (int i = 0; i < vecinos.Count; i++)
+        {
+            //agregamos a nuestros vecinos...         (su posicion x)       (su posicion y)      (yo)    (la posicion del vecino invertida)
+            myNode.neighbours.Add(RecuBuildDFS((int)vecinos[i].Item1.x, (int)vecinos[i].Item1.y, myNode, vecinos[i].Item2.Inverted()));
+        }
+
+        
+
         return null;
     }
 
@@ -78,7 +87,14 @@ public class PipesSim : MonoBehaviour
         return 0;
     }
 
-
+    List<Tuple<Vector2,Direction>> GetNeighboursPositions(Vector2 pos) {
+        List<Tuple<Vector2, Direction>> aux = new List<Tuple<Vector2, Direction>>();
+        if (!PositionOccupied((int)(pos + Constantes.Left).x, (int)(pos + Constantes.Left).y)) aux.Add(Tuple.Create(pos + Constantes.Left, Direction.Left));
+        if (!PositionOccupied((int)(pos + Constantes.Top).x, (int)(pos + Constantes.Top).y)) aux.Add(Tuple.Create(pos + Constantes.Top, Direction.Top));
+        if (!PositionOccupied((int)(pos + Constantes.Right).x, (int)(pos + Constantes.Right).y)) aux.Add(Tuple.Create(pos + Constantes.Right, Direction.Right));
+        if (!PositionOccupied((int)(pos + Constantes.Bottom).x, (int)(pos + Constantes.Bottom).y)) aux.Add(Tuple.Create(pos + Constantes.Bottom, Direction.Bottom));
+        return aux;
+    }
 
     List<Direction> GetDireccionesPosibles(int x, int y) {
         var pipe = FindPipe(x, y);
@@ -137,7 +153,6 @@ public class PipesSim : MonoBehaviour
 
     void StartFill()
     {
-
     }
 
 
@@ -183,5 +198,23 @@ public static class ext
 
     public static T GetRandomValue<T>(this List<T> col) { return col[Random.Range(0, col.Count)]; }
     public static T GetRandomValue<T>(this T[] col) { return col[Random.Range(0, col.Length)]; }
+}
+
+public static class exten
+{
+    public static List<T> Where<T>(this List<T> col, System.Func<T, bool> pred)
+    {
+        List<T> aux = new List<T>();
+
+        foreach (T v in col)
+        {
+            if (pred(v))
+            {
+                aux.Add(v);
+            }
+        }
+
+        return aux;
+    }
 }
 
