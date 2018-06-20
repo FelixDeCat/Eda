@@ -25,7 +25,6 @@ public class PipesSim : MonoBehaviour
     public Material materialError;
     bool _filled = false;
 
-
     // Variables agregadas
     private Node _root;
 
@@ -35,14 +34,23 @@ public class PipesSim : MonoBehaviour
     // Lista de todos los nodos en escena
     private List<Node> pipes = new List<Node>();
 
-    //¿Esta la posicion ocupada?
+    void Start()
+    {
+        Iniciar();
+        transform.Rotate(0f, 0f, -5f);
+       // StartCoroutine(Rellenar(5, 5));
+    }
+    void Update()
+    {
+        if (Input.GetMouseButtonDown(0)) { }
+        else if (Input.GetMouseButtonDown(1)) { }
+    }
+
     bool PositionOccupied(int x, int y)
     {
         if ((x > 0 && x < maxWidth) && (y > 0 && y < maxHeight)) return visited[x, y];
         return true;
     }
-
-    //Creamos un nodo (esta función ya está completa)
     Node CreateNode(int x, int y)
     {
         visited[x, y] = true; // Agregue que el mismo nodo diga en que X e Y se crea.
@@ -51,23 +59,27 @@ public class PipesSim : MonoBehaviour
         n.pipe.transform.parent = transform;
         n.pipe.x = x;
         n.pipe.y = y;
-        n.pipe.name = x+","+y;
         pipes.Add(n); // Se agrega a la lista de pipes del mapa
         return n;
     }
 
+    public void RandomBranches()
+    {
 
-    public bool Block() { return Random.Range(0, blockChance + branchChance) < blockChance; }
+    }
+
+    public bool Block() { return blockChance > (Random.Range(0, 1)); }
+    public bool Branch() { return branchChance > (Random.Range(0, 1)); }
 
     public void Iniciar()
     {
         visited = visited.Create(maxWidth, maxHeight, false);
-
         var intial = _root;
 
-        Node myNode = CreateNode(5, 5);
+        Node myNode = CreateNode(3, 3);
+        myNode.content = Content.Empty;
+        var vecinos = GetNeighboursPositions(new Vector2(3, 3)).Randomize();
 
-        var vecinos = GetNeighboursPositions(new Vector2(5, 5)).Randomize();
 
 
         for (int i = 0; i < vecinos.Count; i++)
@@ -78,75 +90,42 @@ public class PipesSim : MonoBehaviour
         }
 
         Debug.Log("Terminó");
-
-        
     }
 
-    public IEnumerator Contruir()
-    {
-        yield return new WaitForSeconds(0.5f);
-    }
-
-    //public IEnumerator RecursiveStep(int depth)
-    //{
-    //    if (depth > 0)
-    //    {
-    //        yield return StartCoroutine(RecursiveStep(depth - 1));
-    //    }
-
-    //    yield return new WaitForSeconds(0.5f);
-    //    Debug.Log("MyCoroutine is now finished at depth " + depth);
-    //}
-
-    public IEnumerator Rellenar(int x, int y)
-    {
-        var node = GetNode(x,y);
-
-        node.content = node.content == Content.Block ? Content.Block : Content.Tears;
-        node.pipe.material = node.content == Content.Block ? materialBlocked : materialTears;
-
-        var vecinos = node.neighbours
-            .Where(v => v.content != Content.Tears)
-            .Where(v => v.pipe.transform.position.x > node.pipe.transform.position.x || v.pipe.transform.position.y < node.pipe.transform.position.y);
-
-        foreach (Node n in vecinos)
-        {
-            
-            yield return StartCoroutine(Rellenar(n.pipe.x, n.pipe.y));
-        }
-        //yield return new WaitForSeconds(0.5f);
-    }
-
-    Node GetNode(int _x,int _y)
-    {
-        return pipes.Where(current => current.pipe.x == _x && current.pipe.y == _y).First();
-    }
+    int debint = 0;
 
     //Creamos el sistema de cañerias
     Node RecuBuildDFS(int x, int y, Node prev = null, Direction comingFrom = Direction.Left)
     {
+        debint++;
+
         Node myNode = CreateNode(x,y);
+        myNode.pipe.name = debint.ToString();
 
-        if (!Block())
+        myNode.content = Block() ? Content.Block : Content.Empty;
+
+        //myNode.pipe.SetConnection(comingFrom, true);
+        prev.pipe.SetConnection(comingFrom.Inverted(), true);
+
+        myNode.neighbours.Add(prev);
+
+        // esto recibe mi posicion y me devuelve una tupla de nodos, (Item1 = Posicion del vecino), (Item2 = Direction del vecino)
+        // filtra si uno de los que esta ahi es mi parent y randomiza
+        var vecinos = GetNeighboursPositions(new Vector2(x, y))
+            .Except(neigh => neigh.Item2 == comingFrom)
+            .Randomize();
+
+
+        //Debug.Log(vecinos.Count);
+
+        for (int i = 0; i < vecinos.Count; i++)
         {
-            myNode.content = Content.Empty;
-            // esto recibe mi posicion y me devuelve una tupla de nodos, (Item1 = Posicion del vecino), (Item2 = Direction del vecino)
-            //  filtra si uno de los que esta ahi es mi parent y randomiza
-            var vecinos = GetNeighboursPositions(new Vector2(x, y)).Except(neigh => neigh.Item2 == comingFrom).Randomize();
-
-            myNode.pipe.SetConnection(comingFrom, true);
-            myNode.neighbours.Add(prev);
-
-            for (int i = 0; i < vecinos.Count; i++)
+            Debug.Log(vecinos[i].Item2);
+            if (Branch())
             {
                 //agregamos a nuestros vecinos...         (su posicion x)       (su posicion y)      (yo)    (la posicion del vecino invertida)
                 myNode.neighbours.Add(RecuBuildDFS((int)vecinos[i].Item1.x, (int)vecinos[i].Item1.y, myNode, vecinos[i].Item2.Inverted()));
-                myNode.pipe.SetConnection(vecinos[i].Item2, true);
             }
-        }
-        else
-        {
-            myNode.content = Content.Block;
         }
 
         return myNode;
@@ -160,16 +139,44 @@ public class PipesSim : MonoBehaviour
         if (!PositionOccupied((int)(pos + Constantes.Bottom).x, (int)(pos + Constantes.Bottom).y)) aux.Add(Tuple.Create(pos + Constantes.Bottom, Direction.Bottom));
         return aux;
     }
+    public IEnumerator Rellenar(int x, int y)
+    {
+        var node = GetNode(x, y);
 
-    void Start() {
-        Iniciar();
-        transform.Rotate(0f, 0f, -5f);
-        StartCoroutine(Rellenar(5, 5));
+        node.content = node.content == Content.Block ? Content.Block : Content.Tears;
+        node.pipe.material = node.content == Content.Block ? materialBlocked : materialTears;
+
+        var vecinos = node.neighbours
+            .Where(v => v.content != Content.Tears && v.content != Content.Block)
+            .Where(v => v.pipe.transform.position.x > node.pipe.transform.position.x || v.pipe.transform.position.y < node.pipe.transform.position.y);
+
+        foreach (Node n in vecinos)
+        {
+            yield return new WaitForSeconds(0.5f);
+            yield return StartCoroutine(Rellenar(n.pipe.x, n.pipe.y));
+        }
+        Debug.Log("Segundo wait for seconds");
+        yield return new WaitForSeconds(0.5f);
     }
-    void Update(){
-        if (Input.GetMouseButtonDown(0)) {}
-        else if (Input.GetMouseButtonDown(1)){}
+    Node GetNode(int _x, int _y)
+    {
+        return pipes.Where(current => current.pipe.x == _x && current.pipe.y == _y).First();
     }
+    //public IEnumerator Contruir()
+    //{
+    //    yield return new WaitForSeconds(0.5f);
+    //}
+
+    //public IEnumerator RecursiveStep(int depth)
+    //{
+    //    if (depth > 0)
+    //    {
+    //        yield return StartCoroutine(RecursiveStep(depth - 1));
+    //    }
+
+    //    yield return new WaitForSeconds(0.5f);
+    //    Debug.Log("MyCoroutine is now finished at depth " + depth);
+    //}
 }
 public static class ExtensionsForPipes {
     public static PipesSim.Node GetIn(this IEnumerable<PipesSim.Node> col, int x, int y) {
@@ -221,6 +228,10 @@ public static class FelitoExtensions {
 
         return newcol;
     }
+    public static T Debug<T>(this T deb, string Msg = "") {
+        UnityEngine.Debug.Log(Msg + deb.ToString());
+        return deb;
+    }
     public static List<T> Randomize<T>(this List<T> col) {
         for (int i = 0; i < col.Count; i++) {
             int indx_random = Random.Range(0,col.Count-1);
@@ -233,5 +244,12 @@ public static class FelitoExtensions {
     }
     public static T GetRandomValue<T>(this List<T> col) { return col[Random.Range(0, col.Count)]; }
     public static T GetRandomValue<T>(this T[] col) { return col[Random.Range(0, col.Length)]; }
+    public static List<T> ToList<T>(this T[] col) {
+        var aux = new List<T>();
+        foreach (var t in col) {
+            aux.Add(t);
+        }
+        return aux;
+    }
 }
 
