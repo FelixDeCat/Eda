@@ -6,8 +6,10 @@ using UnityEngine.SceneManagement;
 public class PipesSim : MonoBehaviour
 {
     public enum Content { Empty, Tears, Block }
+
     public class Node
     {
+        public string info;
         public Pipe pipe;
         public Content content = Content.Empty;
         public List<Node> neighbours = new List<Node>();
@@ -15,8 +17,10 @@ public class PipesSim : MonoBehaviour
 
     public Pipe prefabPipe;
     public int maxWidth, maxHeight;
-    [Range(0.0f, 1.0f)] public float branchChance;
-    [Range(0.0f, 1.0f)] public float blockChance;
+    [Range(0.0f, 1.0f)]
+    public float branchChance;
+    [Range(0.0f, 1.0f)]
+    public float blockChance;
     public float fillDelaySeconds;
 
     public Material materialTears;
@@ -36,9 +40,10 @@ public class PipesSim : MonoBehaviour
 
     void Start()
     {
+        visited = visited.Create(maxWidth, maxHeight, false);
         Iniciar();
-        transform.Rotate(0f, 0f, -5f);
-       // StartCoroutine(Rellenar(5, 5));
+        // transform.Rotate(0f, 0f, -5f);
+         StartCoroutine(Rellenar(0, 0));
     }
     void Update()
     {
@@ -48,7 +53,7 @@ public class PipesSim : MonoBehaviour
 
     bool PositionOccupied(int x, int y)
     {
-        if ((x > 0 && x < maxWidth) && (y > 0 && y < maxHeight)) return visited[x, y];
+        if ((x >= 0 && x < maxWidth) && (y >= 0 && y < maxHeight)) return visited[x, y];
         return true;
     }
     Node CreateNode(int x, int y)
@@ -68,75 +73,101 @@ public class PipesSim : MonoBehaviour
 
     }
 
-    public bool Block() { return blockChance > (Random.Range(0, 1)); }
+    public bool Block() { return blockChance < (Random.Range(0, 1)); }
     public bool Branch() { return branchChance > (Random.Range(0, 1)); }
 
     public void Iniciar()
     {
-        visited = visited.Create(maxWidth, maxHeight, false);
-        var intial = _root;
+        Debug.Log("--- INIT ---");
+        var intial = new Node();
+        intial = RecuBuildDFS(0, 0);
 
-        Node myNode = CreateNode(3, 3);
-        myNode.content = Content.Empty;
-        var vecinos = GetNeighboursPositions(new Vector2(3, 3)).Randomize();
-
-
-
-        for (int i = 0; i < vecinos.Count; i++)
-        {
-            //agregamos a nuestros vecinos...         (su posicion x)       (su posicion y)      (yo)    (la posicion del vecino invertida)
-            myNode.neighbours.Add(RecuBuildDFS((int)vecinos[i].Item1.x, (int)vecinos[i].Item1.y, myNode, vecinos[i].Item2.Inverted()));
-            myNode.pipe.SetConnection(vecinos[i].Item2, true);
-        }
-
-        Debug.Log("Terminó");
+        Debug.Log("El node que me devuelve es el: " + intial.pipe.name);
+        Debug.Log("--- END ---");
     }
 
     int debint = 0;
 
+    bool first = true;
+
     //Creamos el sistema de cañerias
     Node RecuBuildDFS(int x, int y, Node prev = null, Direction comingFrom = Direction.Left)
     {
-        debint++;
-
-        Node myNode = CreateNode(x,y);
+        Node myNode = CreateNode(x, y);
+        myNode.content = Content.Empty;
         myNode.pipe.name = debint.ToString();
-
-        myNode.content = Block() ? Content.Block : Content.Empty;
-
-        //myNode.pipe.SetConnection(comingFrom, true);
-        prev.pipe.SetConnection(comingFrom.Inverted(), true);
-
-        myNode.neighbours.Add(prev);
+        //myNode.pipe.info = debint.ToString();
+        debint++;
 
         // esto recibe mi posicion y me devuelve una tupla de nodos, (Item1 = Posicion del vecino), (Item2 = Direction del vecino)
         // filtra si uno de los que esta ahi es mi parent y randomiza
-        var vecinos = GetNeighboursPositions(new Vector2(x, y))
-            .Except(neigh => neigh.Item2 == comingFrom)
-            .Randomize();
+        var dir_posibles = GetPosiblePositions(new Vector2(x, y));
 
+        //Debug.Log("NODE: " + myNode.pipe.name + "Es: " + myNode.pipe.x.ToString() + "," + myNode.pipe.y.ToString());
+        //for (int i = 0; i < dir_posibles.Count; i++)
+        //{
+        //    Debug.Log(((int)(dir_posibles[i].Item1.x)).ToString() + "," + ((int)(dir_posibles[i].Item1.y)).ToString());
+        //}
 
-        //Debug.Log(vecinos.Count);
-
-        for (int i = 0; i < vecinos.Count; i++)
+        if (first)
         {
-            Debug.Log(vecinos[i].Item2);
-            if (Branch())
+            Debug.Log("El primero deveria tener maximo 2 direcciones" + dir_posibles.Count);
+            first = false;
+            myNode.content = Content.Empty;
+            myNode.pipe.branches = dir_posibles.Count;
+            //myNode.pipe.addinfo = "-" + myNode.pipe.branches.ToString();
+        }
+        else
+        {
+            myNode.content = blockChance > Random.Range(0f, 1f) ? Content.Block : Content.Empty;
+
+            if (myNode.content == Content.Block) myNode.pipe.material = materialBlocked;
+            else myNode.pipe.material = materialEmpty;
+
+            myNode.pipe.branches = dir_posibles.Count;
+            //myNode.pipe.addinfo = "-" + myNode.pipe.branches.ToString();
+        }
+
+        if (prev != null)// si no es el primero
+        {
+            //lo conecto con mi padre y lo agrego como vecino
+
+            if (comingFrom == Direction.Top || comingFrom == Direction.Bottom) prev.pipe.SetConnection(comingFrom, true);
+            if (comingFrom == Direction.Right || comingFrom == Direction.Left) prev.pipe.SetConnection(comingFrom.Inverted(), true);
+
+            myNode.neighbours.Add(prev);
+
+            if (comingFrom == Direction.Top || comingFrom == Direction.Bottom) myNode.pipe.SetConnection(comingFrom.Inverted(), true);
+            if (comingFrom == Direction.Right || comingFrom == Direction.Left) myNode.pipe.SetConnection(comingFrom, true);
+
+            //filtro y saco a mi padre de mis vecinos
+            //randomizo
+            dir_posibles = dir_posibles.Randomize();
+        }
+        else
+        {
+            //como es el primero tomo a todos los que estan alrededor
+            dir_posibles = dir_posibles.Randomize();
+        }
+
+        for (int i = 0; i < myNode.pipe.branches; i++)
+        {
+            if (!PositionOccupied((int)dir_posibles[i].Item1.x, (int)dir_posibles[i].Item1.y))
             {
-                //agregamos a nuestros vecinos...         (su posicion x)       (su posicion y)      (yo)    (la posicion del vecino invertida)
-                myNode.neighbours.Add(RecuBuildDFS((int)vecinos[i].Item1.x, (int)vecinos[i].Item1.y, myNode, vecinos[i].Item2.Inverted()));
+                myNode.neighbours.Add(RecuBuildDFS((int)dir_posibles[i].Item1.x, (int)dir_posibles[i].Item1.y, myNode, dir_posibles[i].Item2.Inverted()));
             }
         }
 
         return myNode;
     }
 
-    List<Tuple<Vector2,Direction>> GetNeighboursPositions(Vector2 pos) {
+    List<Tuple<Vector2, Direction>> GetPosiblePositions(Vector2 pos)
+    {
         List<Tuple<Vector2, Direction>> aux = new List<Tuple<Vector2, Direction>>();
-        if (!PositionOccupied((int)(pos + Constantes.Left).x, (int)(pos + Constantes.Left).y)) aux.Add(Tuple.Create(pos + Constantes.Left, Direction.Left));
-        if (!PositionOccupied((int)(pos + Constantes.Top).x, (int)(pos + Constantes.Top).y)) aux.Add(Tuple.Create(pos + Constantes.Top, Direction.Top));
-        if (!PositionOccupied((int)(pos + Constantes.Right).x, (int)(pos + Constantes.Right).y)) aux.Add(Tuple.Create(pos + Constantes.Right, Direction.Right));
-        if (!PositionOccupied((int)(pos + Constantes.Bottom).x, (int)(pos + Constantes.Bottom).y)) aux.Add(Tuple.Create(pos + Constantes.Bottom, Direction.Bottom));
+        if (!PositionOccupied((int)(pos + Constantes.Left).x, (int)(pos + Constantes.Left).y)) { aux.Add(Tuple.Create(pos + Constantes.Left, Direction.Left)); }
+        if (!PositionOccupied((int)(pos + Constantes.Top).x, (int)(pos + Constantes.Top).y)) { aux.Add(Tuple.Create(pos + Constantes.Top, Direction.Top)); }
+        if (!PositionOccupied((int)(pos + Constantes.Right).x, (int)(pos + Constantes.Right).y)) { aux.Add(Tuple.Create(pos + Constantes.Right, Direction.Right)); }
+        if (!PositionOccupied((int)(pos + Constantes.Bottom).x, (int)(pos + Constantes.Bottom).y)) { aux.Add(Tuple.Create(pos + Constantes.Bottom, Direction.Bottom)); }
         return aux;
     }
     public IEnumerator Rellenar(int x, int y)
@@ -147,8 +178,7 @@ public class PipesSim : MonoBehaviour
         node.pipe.material = node.content == Content.Block ? materialBlocked : materialTears;
 
         var vecinos = node.neighbours
-            .Where(v => v.content != Content.Tears && v.content != Content.Block)
-            .Where(v => v.pipe.transform.position.x > node.pipe.transform.position.x || v.pipe.transform.position.y < node.pipe.transform.position.y);
+            .Where(v => v.content != Content.Tears && v.content != Content.Block);
 
         foreach (Node n in vecinos)
         {
@@ -178,16 +208,21 @@ public class PipesSim : MonoBehaviour
     //    Debug.Log("MyCoroutine is now finished at depth " + depth);
     //}
 }
-public static class ExtensionsForPipes {
-    public static PipesSim.Node GetIn(this IEnumerable<PipesSim.Node> col, int x, int y) {
+public static class ExtensionsForPipes
+{
+    public static PipesSim.Node GetIn(this IEnumerable<PipesSim.Node> col, int x, int y)
+    {
         foreach (PipesSim.Node p in col) if (p.pipe.x == x && p.pipe.y == y) return p;
         return null;
     }
     public static Direction GetRandomDirection(this List<Direction> dirs) { return dirs.GetRandomValue(); }
-    public static List<Direction> GetDireccionesPosibles(this Pipe pipe) {
+    public static List<Direction> GetDireccionesPosibles(this Pipe pipe)
+    {
         var dirs = new List<Direction>();
-        for (int i = 0; i < 4; i++) {
-            if (pipe.parts[i] != null) {
+        for (int i = 0; i < 4; i++)
+        {
+            if (pipe.parts[i] != null)
+            {
                 Direction dir = (Direction)i;
                 dirs.Add(dir);
             }
@@ -196,7 +231,8 @@ public static class ExtensionsForPipes {
     }
 }
 
-public static class FelitoExtensions {
+public static class FelitoExtensions
+{
     public static List<T> Where<T>(this List<T> col, System.Func<T, bool> pred)
     {
         List<T> aux = new List<T>();
@@ -221,20 +257,24 @@ public static class FelitoExtensions {
 
         return matrix;
     }
-    public static List<T> Except<T>(this List<T> col, System.Func<T, bool> pred) {
+    public static List<T> Except<T>(this List<T> col, System.Func<T, bool> pred)
+    {
         var newcol = new List<T>();
-        for (int i = 0; i < col.Count; i++) 
+        for (int i = 0; i < col.Count; i++)
             if (!pred(col[i])) newcol.Add(col[i]);
 
         return newcol;
     }
-    public static T Debug<T>(this T deb, string Msg = "") {
+    public static T Debug<T>(this T deb, string Msg = "")
+    {
         UnityEngine.Debug.Log(Msg + deb.ToString());
         return deb;
     }
-    public static List<T> Randomize<T>(this List<T> col) {
-        for (int i = 0; i < col.Count; i++) {
-            int indx_random = Random.Range(0,col.Count-1);
+    public static List<T> Randomize<T>(this List<T> col)
+    {
+        for (int i = 0; i < col.Count; i++)
+        {
+            int indx_random = Random.Range(0, col.Count);
             var val_random = col[indx_random];
 
             col[indx_random] = col[i];
@@ -244,9 +284,11 @@ public static class FelitoExtensions {
     }
     public static T GetRandomValue<T>(this List<T> col) { return col[Random.Range(0, col.Count)]; }
     public static T GetRandomValue<T>(this T[] col) { return col[Random.Range(0, col.Length)]; }
-    public static List<T> ToList<T>(this T[] col) {
+    public static List<T> ToList<T>(this T[] col)
+    {
         var aux = new List<T>();
-        foreach (var t in col) {
+        foreach (var t in col)
+        {
             aux.Add(t);
         }
         return aux;

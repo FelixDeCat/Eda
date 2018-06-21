@@ -1,11 +1,16 @@
 ﻿using UnityEngine;
+using UnityEngine.UI;
 
 //IMPORTANTE: Esta clase esta completa, NO LA DEBE MODIFICAR -- USELA ASI
 public class Pipe : MonoBehaviour {
 
+    [SerializeField] TextMesh txt_info; public string info { set { txt_info.text = value; } }
+    public string addinfo { set { txt_info.text += value; } }
     public GameObject[] parts;
     Material _material;
     int _x, _y;
+
+    public int branches;
 
     void Awake() {
         foreach (var p in parts) { p.SetActive(false); }
