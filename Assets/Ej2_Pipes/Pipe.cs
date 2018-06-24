@@ -17,6 +17,11 @@ public class Pipe : MonoBehaviour {
         SetConnection(Direction.Center, true);
     }
 
+    private void OnMouseDown()
+    {
+        FindObjectOfType<PipesSim>().InitRefill(this);
+    }
+
     // + //
     public int x { get { return _x; } set { _x = value; RefreshPos(); } }
     public int y { get { return _y; } set { _y = value; RefreshPos(); } }

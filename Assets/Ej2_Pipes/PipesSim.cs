@@ -2,10 +2,13 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class PipesSim : MonoBehaviour
 {
     public enum Content { Empty, Tears, Block }
+
+    public Text txt_debug; object d { set { txt_debug.text = value.ToString(); } }
 
     public class Node
     {
@@ -43,11 +46,14 @@ public class PipesSim : MonoBehaviour
         visited = visited.Create(maxWidth, maxHeight, false);
         Iniciar();
         // transform.Rotate(0f, 0f, -5f);
-         StartCoroutine(Rellenar(0, 0));
+         //StartCoroutine(Rellenar(0, 0));
     }
     void Update()
     {
-        if (Input.GetMouseButtonDown(0)) { }
+        if (Input.GetMouseButtonDown(0))
+        {
+            //InitRefill(GetNode(0,0));
+        }
         else if (Input.GetMouseButtonDown(1)) { }
     }
 
@@ -170,24 +176,69 @@ public class PipesSim : MonoBehaviour
         if (!PositionOccupied((int)(pos + Constantes.Bottom).x, (int)(pos + Constantes.Bottom).y)) { aux.Add(Tuple.Create(pos + Constantes.Bottom, Direction.Bottom)); }
         return aux;
     }
-    public IEnumerator Rellenar(int x, int y)
+    //public IEnumerator Rellenar(int x, int y)
+    //{
+    //    var node = GetNode(x, y);
+
+    //    node.content = node.content == Content.Block ? Content.Block : Content.Tears;
+    //    node.pipe.material = node.content == Content.Block ? materialBlocked : materialTears;
+
+    //    var vecinos = node.neighbours
+    //        .Where(v => v.content != Content.Tears && v.content != Content.Block);
+
+    //    foreach (Node n in vecinos)
+    //    {
+    //        yield return new WaitForSeconds(0.5f);
+    //        yield return StartCoroutine(Rellenar(n.pipe.x, n.pipe.y));
+    //    }
+    //    Debug.Log("Segundo wait for seconds");
+    //    yield return new WaitForSeconds(0.5f);
+    //}
+
+    public void InitRefill(Pipe pipe)
     {
-        var node = GetNode(x, y);
-
-        node.content = node.content == Content.Block ? Content.Block : Content.Tears;
-        node.pipe.material = node.content == Content.Block ? materialBlocked : materialTears;
-
-        var vecinos = node.neighbours
-            .Where(v => v.content != Content.Tears && v.content != Content.Block);
-
-        foreach (Node n in vecinos)
-        {
-            yield return new WaitForSeconds(0.5f);
-            yield return StartCoroutine(Rellenar(n.pipe.x, n.pipe.y));
-        }
-        Debug.Log("Segundo wait for seconds");
-        yield return new WaitForSeconds(0.5f);
+        var node = pipes.Where( x => x.pipe.Equals(pipe) ).First();
+        initialForFill = node;
+        pendientes.Add(initialForFill);
+        StartCoroutine(RecRefill());
     }
+
+    public Node initialForFill;
+    public List<Node> pendientes = new List<Node>();
+    public List<Node> visitados = new List<Node>();
+    public IEnumerator RecRefill()
+    {
+        d = pendientes.Count;
+
+        if (pendientes.Count > 0)
+        {
+            var vecinos = new List<Node>();
+
+            foreach (Node n in pendientes)
+            {
+                n.pipe.material = materialTears;
+                foreach (Node v in n.neighbours) { if(v.content != Content.Block) vecinos.Add(v); }
+                visitados.Add(n);
+            }
+
+            yield return new WaitForSeconds(0.1f);
+
+            for (int i = 0; i < visitados.Count; i++)
+                if (pendientes.Contains(visitados[i]))
+                    pendientes.Remove(visitados[i]);
+
+            foreach (Node v in vecinos)
+            {
+                if(!visitados.Contains(v))
+                    pendientes.Add(v);
+            }
+
+            vecinos.Clear();
+
+            StartCoroutine(RecRefill());
+        }
+    }
+
     Node GetNode(int _x, int _y)
     {
         return pipes.Where(current => current.pipe.x == _x && current.pipe.y == _y).First();
